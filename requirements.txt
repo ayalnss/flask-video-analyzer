@@ -1,5 +1,7 @@
 Flask
+opencv-python-headless
+numpy
 paddleocr
 ultralytics
 pymongo
-opencv-python-headless
+gunicorn
