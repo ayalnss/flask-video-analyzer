@@ -5,3 +5,4 @@ paddleocr
 ultralytics
 pymongo
 gunicorn
+paddlepaddle
