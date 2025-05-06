@@ -6,7 +6,7 @@ from paddleocr import PaddleOCR
 from ultralytics import YOLO
 from pymongo import MongoClient
 import tempfile
-
+import os
 app = Flask(__name__)
 
 # ---------- Connect to MongoDB ----------
@@ -78,5 +78,8 @@ def analyze_video():
     cap.release()
     return jsonify({"status": "Done", "results": detected_plates})
 
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
