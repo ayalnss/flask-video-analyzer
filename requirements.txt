@@ -1,8 +1,8 @@
-Flask
+flask
 opencv-python-headless
 numpy
 paddleocr
-ultralytics
 pymongo
+ultralytics
 gunicorn
 paddlepaddle

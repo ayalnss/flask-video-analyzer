@@ -7,6 +7,7 @@ from ultralytics import YOLO
 from pymongo import MongoClient
 import tempfile
 import os
+
 app = Flask(__name__)
 
 # ---------- Connect to MongoDB ----------
@@ -16,8 +17,8 @@ collection = db['violations']
 
 # ---------- Models ----------
 ocr = PaddleOCR(use_angle_cls=True, lang='en')
-plate_model = YOLO('best.pt')
-vehicle_model = YOLO('yolov8n.pt')
+plate_model = YOLO('best.pt')  # Make sure best.pt is in the same folder
+vehicle_model = YOLO('yolov8n.pt')  # This is a built-in YOLOv8 model
 
 # ---------- OCR Function ----------
 def perform_ocr(image_array):
@@ -25,7 +26,7 @@ def perform_ocr(image_array):
     text = ' '.join([result[1][0] for result in results[0]] if results[0] else "")
     return text.strip()
 
-# ---------- Route to process uploaded video ----------
+# ---------- Video Analysis Route ----------
 @app.route('/analyze', methods=['POST'])
 def analyze_video():
     if 'video' not in request.files:
@@ -47,10 +48,6 @@ def analyze_video():
         frame_id += 1
         if frame_id % 30 == 0:
             vehicle_results = vehicle_model.predict(frame, conf=0.5, verbose=False)
-
-            for result in vehicle_results:
-                class_ids = result.boxes.cls.cpu().numpy()
-
             plate_results = plate_model.predict(frame, conf=0.5, verbose=False)
 
             for result in plate_results:
@@ -76,12 +73,10 @@ def analyze_video():
                         detected_plates.append(document)
 
     cap.release()
+    os.remove(temp_video_path)
     return jsonify({"status": "Done", "results": detected_plates})
 
 
-
-import os
-
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))  # <-- IMPORTANT
-    app.run(host='0.0.0.0', port=port, debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
