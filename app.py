@@ -18,12 +18,9 @@ client = MongoClient(connection_string)
 db = client['video_analysis_db']
 collection = db['violations']
 
-# ---------- Load Models ----------
-plate_model = YOLO("best.pt")  # Only the plate detection model
-ocr = PaddleOCR(use_angle_cls=True, lang='en')
-
 # ---------- OCR Function ----------
 def perform_ocr(image_array):
+    ocr = PaddleOCR(use_angle_cls=True, lang='en')  # Load OCR model only when needed
     results = ocr.ocr(image_array, rec=True)
     text = ' '.join([result[1][0] for result in results[0]] if results[0] else "")
     return text.strip()
@@ -31,6 +28,9 @@ def perform_ocr(image_array):
 # ---------- API Endpoint ----------
 @app.post("/analyze-video")
 async def analyze_video(file: UploadFile = File(...)):
+    # Lazy load YOLO model
+    plate_model = YOLO("best.pt")  # Only load when endpoint is hit
+
     # Save uploaded video temporarily
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
         shutil.copyfileobj(file.file, tmp)
@@ -46,7 +46,7 @@ async def analyze_video(file: UploadFile = File(...)):
             break
 
         frame_id += 1
-        if frame_id % 30 != 0:
+        if frame_id % 30 != 0:  # Skip frames to reduce processing load
             continue
 
         # Plate Detection

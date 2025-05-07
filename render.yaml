@@ -3,4 +3,4 @@ services:
     name: fastapi-app
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
+    startCommand: gunicorn -w 4 -b 0.0.0.0:10000 main:app
