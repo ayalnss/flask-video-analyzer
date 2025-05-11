@@ -19,15 +19,19 @@ collection = db['violations']
 
 # ---------- OCR Function ----------
 def perform_ocr(image_array):
-    ocr = PaddleOCR(use_angle_cls=True, lang='en')  # Load OCR model only when needed
+    ocr = PaddleOCR(use_angle_cls=True, lang='en')  # Create OCR model
     results = ocr.ocr(image_array, rec=True)
     text = ' '.join([result[1][0] for result in results[0]] if results[0] else "")
     return text.strip()
 
-# ---------- API Endpoint ----------
-@app.post("/analyze-video")
+# ---------- Root Route (for browser) ----------
+@app.get("/")
+def read_root():
+    return {"message": "FastAPI Video Analyzer is running. Use POST /analyze-video to upload videos."}
+
+# ---------- Video Analysis Route ----------
+@app.post("/analyze-video")  # ✅ This line connects the function to the endpoint
 async def analyze_video(file: UploadFile = File(...)):
-    # Save uploaded video temporarily
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
         shutil.copyfileobj(file.file, tmp)
         video_path = tmp.name
@@ -42,13 +46,10 @@ async def analyze_video(file: UploadFile = File(...)):
             break
 
         frame_id += 1
-        if frame_id % 30 != 0:  # Skip frames to reduce processing load
+        if frame_id % 30 != 0:
             continue
 
-        # Convert frame to RGB (PaddleOCR requires RGB)
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Perform OCR on the entire frame
         text = perform_ocr(rgb_frame)
 
         if text:
