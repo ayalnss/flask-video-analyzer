@@ -1,9 +1,7 @@
 fastapi
-uvicorn
-opencv-python-headless  # Use headless version for server environments
-numpy
-paddleocr
 pymongo
-ultralytics
-gunicorn
+opencv-python-headless
+numpy
 paddlepaddle
+paddleocr
+uvicorn

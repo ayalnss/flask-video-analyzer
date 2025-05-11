@@ -6,7 +6,6 @@ import cv2
 import numpy as np
 import tempfile
 import shutil
-from ultralytics import YOLO
 from paddleocr import PaddleOCR
 import os
 
@@ -28,9 +27,6 @@ def perform_ocr(image_array):
 # ---------- API Endpoint ----------
 @app.post("/analyze-video")
 async def analyze_video(file: UploadFile = File(...)):
-    # Lazy load YOLO model
-    plate_model = YOLO("best.pt")  # Only load when endpoint is hit
-
     # Save uploaded video temporarily
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
         shutil.copyfileobj(file.file, tmp)
@@ -49,37 +45,27 @@ async def analyze_video(file: UploadFile = File(...)):
         if frame_id % 30 != 0:  # Skip frames to reduce processing load
             continue
 
-        # Plate Detection
-        plate_results = plate_model.predict(frame, conf=0.5, verbose=False)
+        # Convert frame to RGB (PaddleOCR requires RGB)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        for result in plate_results:
-            boxes = result.boxes.xyxy.cpu().numpy()
-            for box in boxes:
-                x1, y1, x2, y2 = map(int, box)
-                plate_crop = frame[y1:y2, x1:x2]
+        # Perform OCR on the entire frame
+        text = perform_ocr(rgb_frame)
 
-                if plate_crop.size == 0:
-                    continue
+        if text:
+            current_time = datetime.now()
+            record = {
+                "date": current_time.strftime("%Y-%m-%d"),
+                "time": current_time.strftime("%H:%M:%S"),
+                "frame_id": frame_id,
+                "text_detected": text
+            }
 
-                rgb_crop = cv2.cvtColor(plate_crop, cv2.COLOR_BGR2RGB)
-                plate_number = perform_ocr(rgb_crop)
-
-                if plate_number:
-                    current_time = datetime.now()
-                    record = {
-                        "date": current_time.strftime("%Y-%m-%d"),
-                        "time": current_time.strftime("%H:%M:%S"),
-                        "frame_id": frame_id,
-                        "class_name": "vehicle",
-                        "numberplate": plate_number
-                    }
-
-                    collection.insert_one(record)
-                    detected_plates.append({
-                        "numberplate": plate_number,
-                        "time": record["time"],
-                        "date": record["date"]
-                    })
+            collection.insert_one(record)
+            detected_plates.append({
+                "text_detected": text,
+                "time": record["time"],
+                "date": record["date"]
+            })
 
     cap.release()
     os.remove(video_path)
