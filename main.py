@@ -10,41 +10,42 @@ import os
 
 app = FastAPI()
 
-# CORS to allow frontend access
+# Allow frontend CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Or use specific domains
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# MongoDB Setup
-client = MongoClient("mongodb+srv://lounisaya01:4jbuG89czpaEkvSw@cluster0.int5had.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
-db = client['video_analysis_db']
-collection = db['ocr_results']
+# MongoDB (local) setup
+client = MongoClient("mongodb://localhost:27017/")
+db = client['ems']
+collection = db['violations']
 
-# Create image storage folder
+# Image upload folder
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# OCR Setup
+# OCR engine
 ocr = PaddleOCR(use_angle_cls=True, lang='en')
 
 @app.get("/")
-def read_root():
-    return {"message": "OCR API Ready"}
+def root():
+    return {"message": "OCR API Connected to Local MongoDB"}
 
 @app.post("/ocr-image")
 async def ocr_image(file: UploadFile = File(...)):
-    # Read and save uploaded image
     contents = await file.read()
+
+    # Save uploaded image to disk
     filename = f"{datetime.utcnow().timestamp()}_{file.filename}"
     image_path = os.path.join(UPLOAD_DIR, filename)
     with open(image_path, "wb") as f:
         f.write(contents)
 
-    # Read image using OpenCV
+    # Decode image
     nparr = np.frombuffer(contents, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -53,23 +54,26 @@ async def ocr_image(file: UploadFile = File(...)):
     results = ocr.ocr(img_rgb, rec=True)
     text_detected = ' '.join([res[1][0] for res in results[0]]) if results and results[0] else "NOT FOUND"
 
-    # Save to MongoDB
+    # Current time details
     now = datetime.now()
     violation = {
-        "numberplate": text_detected.strip(),
         "date": now.strftime("%Y-%m-%d"),
-        "image_path": image_path,
-        "created_at": now
+        "time": now.strftime("%H:%M:%S"),
+        "frame_id": 180,  # You can update this dynamically if needed
+        "class_name": "vehicle",
+        "numberplate": text_detected.strip()
     }
+
+    # Save to MongoDB
     collection.insert_one(violation)
 
     return JSONResponse(content={
-        "message": "Violation saved",
+        "message": "Violation saved to local MongoDB",
         "text_detected": text_detected,
-        "image_path": image_path
+        "stored_data": violation
     })
 
 @app.get("/violations")
 def get_violations():
-    violations = list(collection.find({}, {'_id': 0}))  # Hide MongoDB _id
+    violations = list(collection.find({}, {"_id": 0}))  # Hide MongoDB internal _id
     return violations
