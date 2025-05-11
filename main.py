@@ -10,21 +10,21 @@ import os
 
 app = FastAPI()
 
-# CORS settings
+# CORS to allow frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Or use specific domains
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Local MongoDB Connection
-client = MongoClient("mongodb://localhost:27017/")
-db = client['ems']  # Database name
-collection = db['violations']  # Collection name
+# MongoDB Setup
+client = MongoClient("mongodb+srv://lounisaya01:4jbuG89czpaEkvSw@cluster0.int5had.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+db = client['video_analysis_db']
+collection = db['ocr_results']
 
-# Image upload folder
+# Create image storage folder
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -37,13 +37,14 @@ def read_root():
 
 @app.post("/ocr-image")
 async def ocr_image(file: UploadFile = File(...)):
+    # Read and save uploaded image
     contents = await file.read()
     filename = f"{datetime.utcnow().timestamp()}_{file.filename}"
     image_path = os.path.join(UPLOAD_DIR, filename)
     with open(image_path, "wb") as f:
         f.write(contents)
 
-    # Decode image
+    # Read image using OpenCV
     nparr = np.frombuffer(contents, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -52,13 +53,11 @@ async def ocr_image(file: UploadFile = File(...)):
     results = ocr.ocr(img_rgb, rec=True)
     text_detected = ' '.join([res[1][0] for res in results[0]]) if results and results[0] else "NOT FOUND"
 
+    # Save to MongoDB
     now = datetime.now()
     violation = {
         "numberplate": text_detected.strip(),
         "date": now.strftime("%Y-%m-%d"),
-        "time": now.strftime("%H:%M:%S"),
-        "frame_id": 0,  # You can update this based on your use case
-        "class_name": "vehicle",  # Fixed value unless you want to detect class
         "image_path": image_path,
         "created_at": now
     }
@@ -72,5 +71,5 @@ async def ocr_image(file: UploadFile = File(...)):
 
 @app.get("/violations")
 def get_violations():
-    violations = list(collection.find({}, {'_id': 0}))  # Hide _id
+    violations = list(collection.find({}, {'_id': 0}))  # Hide MongoDB _id
     return violations
