@@ -5,3 +5,4 @@ numpy
 paddlepaddle
 paddleocr
 uvicorn
+python-multipart
