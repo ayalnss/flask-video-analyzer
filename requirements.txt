@@ -1,8 +1,2 @@
 fastapi
-pymongo
-opencv-python-headless
-numpy
-paddlepaddle
-paddleocr
 uvicorn
-python-multipart
