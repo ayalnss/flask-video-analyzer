@@ -10,7 +10,7 @@ import os
 
 app = FastAPI()
 
-# Allow frontend CORS
+# CORS settings
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,27 +19,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# MongoDB (local) setup
+# ✅ Local MongoDB Connection
 client = MongoClient("mongodb://localhost:27017/")
-db = client['ems']
-collection = db['violations']
+db = client['ems']  # Database name
+collection = db['violations']  # Collection name
 
 # Image upload folder
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# OCR engine
+# OCR Setup
 ocr = PaddleOCR(use_angle_cls=True, lang='en')
 
 @app.get("/")
-def root():
-    return {"message": "OCR API Connected to Local MongoDB"}
+def read_root():
+    return {"message": "OCR API Ready"}
 
 @app.post("/ocr-image")
 async def ocr_image(file: UploadFile = File(...)):
     contents = await file.read()
-
-    # Save uploaded image to disk
     filename = f"{datetime.utcnow().timestamp()}_{file.filename}"
     image_path = os.path.join(UPLOAD_DIR, filename)
     with open(image_path, "wb") as f:
@@ -54,26 +52,25 @@ async def ocr_image(file: UploadFile = File(...)):
     results = ocr.ocr(img_rgb, rec=True)
     text_detected = ' '.join([res[1][0] for res in results[0]]) if results and results[0] else "NOT FOUND"
 
-    # Current time details
     now = datetime.now()
     violation = {
+        "numberplate": text_detected.strip(),
         "date": now.strftime("%Y-%m-%d"),
         "time": now.strftime("%H:%M:%S"),
-        "frame_id": 180,  # You can update this dynamically if needed
-        "class_name": "vehicle",
-        "numberplate": text_detected.strip()
+        "frame_id": 0,  # You can update this based on your use case
+        "class_name": "vehicle",  # Fixed value unless you want to detect class
+        "image_path": image_path,
+        "created_at": now
     }
-
-    # Save to MongoDB
     collection.insert_one(violation)
 
     return JSONResponse(content={
-        "message": "Violation saved to local MongoDB",
+        "message": "Violation saved",
         "text_detected": text_detected,
-        "stored_data": violation
+        "image_path": image_path
     })
 
 @app.get("/violations")
 def get_violations():
-    violations = list(collection.find({}, {"_id": 0}))  # Hide MongoDB internal _id
+    violations = list(collection.find({}, {'_id': 0}))  # Hide _id
     return violations
